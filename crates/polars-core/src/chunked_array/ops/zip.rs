@@ -38,24 +38,13 @@ macro_rules! impl_ternary_broadcast {
                 .collect_trusted();
             val.rename($self.name());
             Ok(val)
-        }
-        (_, 1, 1) => {
-            let right = $other.get(0);
-            let mask = $mask.get(0).unwrap_or(false);
-            let mut val: ChunkedArray<$ty> = $self
-                .into_iter()
-                .map(|left| ternary_apply(mask, left, right))
-                .collect_trusted();
-            val.rename($self.name());
-            Ok(val)
-        }
-        (1, _, 1) => {
-            let left = $self.get(0);
-            let mask = $mask.get(0).unwrap_or(false);
-            let mut val: ChunkedArray<$ty> = $other
-                .into_iter()
-                .map(|right| ternary_apply(mask, left, right))
-                .collect_trusted();
+        },
+        (_, _, 1) => {
+            let mut val: ChunkedArray<$ty> = if let Some(true) = $mask.get(0) {
+                $self.clone()
+            } else {
+                $other.clone()
+            };
             val.rename($self.name());
             Ok(val)
         },
@@ -75,16 +64,6 @@ macro_rules! impl_ternary_broadcast {
                 .into_no_null_iter()
                 .zip($self)
                 .map(|(mask, left)| ternary_apply(mask, left, right))
-                .collect_trusted();
-            val.rename($self.name());
-            Ok(val)
-        },
-        (l_len, r_len, 1) if l_len == r_len => {
-            let mask = $mask.get(0).unwrap_or(false);
-            let mut val: ChunkedArray<$ty> = $self
-                .into_iter()
-                .zip($other)
-                .map(|(left, right)| ternary_apply(mask, left, right))
                 .collect_trusted();
             val.rename($self.name());
             Ok(val)

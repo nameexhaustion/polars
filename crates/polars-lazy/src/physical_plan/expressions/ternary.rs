@@ -151,7 +151,7 @@ impl PhysicalExpr for TernaryExpr {
         let mut truthy = truthy?;
         let mut falsy = falsy?;
 
-        expand_lengths(&mut truthy, &mut falsy, &mut mask);
+        // expand_lengths(&mut truthy, &mut falsy, &mut mask);
         truthy.zip_with(&mask, &falsy)
     }
 
@@ -369,7 +369,7 @@ impl PartitionedAggregation for TernaryExpr {
         let mask = mask.evaluate_partitioned(df, groups, state)?;
         let mut mask = mask.bool()?.clone();
 
-        expand_lengths(&mut truthy, &mut falsy, &mut mask);
+        // expand_lengths(&mut truthy, &mut falsy, &mut mask);
         truthy.zip_with(&mask, &falsy)
     }
 
