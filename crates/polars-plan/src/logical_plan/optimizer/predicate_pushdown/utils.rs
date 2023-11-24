@@ -397,8 +397,110 @@ pub(super) fn aexpr_blocks_predicate_pushdown(node: Node, expr_arena: &Arena<AEx
             return true;
         }
     }
-
     false
+}
+
+fn try_unravel_alias(
+    stack: &mut Vec<Node>,
+    expr_arena: &Arena<AExpr>,
+) -> Option<(Arc<str>, Option<Arc<str>>)> {
+    let mut rename_from: Option<Arc<str>> = None;
+    let mut rename_to: Option<Arc<str>> = None;
+
+    while !stack.is_empty() {
+        let projection_node = stack.pop().unwrap();
+        let projection_ae = expr_arena.get(projection_node);
+
+        match projection_ae {
+            AExpr::Alias(node, name) => {
+                if rename_from.is_none() {
+                    rename_from = Some(name.clone());
+                }
+                stack.push(*node);
+            },
+            AExpr::Column(name) => {
+                if rename_from.is_none() {
+                    rename_from = Some(name.clone());
+                } else {
+                    rename_to = Some(name.clone());
+                }
+            },
+            _ => {
+                stack.push(projection_node);
+                return None;
+            },
+        }
+    }
+
+    Some((rename_from.unwrap(), rename_to))
+}
+
+pub fn get_allowed_pushdown_columns(
+    projection_nodes: &Vec<Node>,
+    acc_predicates: &PlHashMap<Arc<str>, Node>,
+    expr_arena: &Arena<AExpr>,
+) -> PlHashMap<Arc<str>, Option<Arc<str>>> {
+    let mut stack = Vec::<Node>::with_capacity(4);
+    let mut has_window = false;
+    let mut allowed_pushdown_columns = optimizer::init_hashmap(Some(projection_nodes.len()));
+
+    let partition_by_names = &mut PlHashSet::<Arc<str>>::new();
+
+    for projection_node in projection_nodes.iter() {
+        stack.push(*projection_node);
+
+        if let Some((rename_from, rename_to)) = try_unravel_alias(&mut stack, expr_arena) {
+            allowed_pushdown_columns.insert(rename_from, rename_to);
+            continue;
+        };
+
+        while !stack.is_empty() {
+            let projection_node = stack.pop().unwrap();
+            let projection_ae = expr_arena.get(projection_node);
+
+            if let AExpr::Window {
+                partition_by,
+                options,
+                ..
+            } = projection_ae
+            {
+                #[cfg(feature = "dynamic_group_by")]
+                if matches!(options, WindowType::Rolling(..)) {
+                    allowed_pushdown_columns.clear();
+                    return allowed_pushdown_columns;
+                }
+
+                for node in partition_by.iter() {
+                    if let AExpr::Column(name) = expr_arena.get(*node) {
+                        partition_by_names.insert(name.clone());
+                    } else {
+                        allowed_pushdown_columns.clear();
+                        return allowed_pushdown_columns;
+                    }
+                }
+
+                if !has_window {
+                    allowed_pushdown_columns.clear();
+
+                    for name in partition_by_names.iter() {
+                        allowed_pushdown_columns.insert(name.clone(), None);
+                    }
+                } else {
+                    allowed_pushdown_columns.retain(|rename_from, rename_to| {
+                        rename_to.is_none() && partition_by_names.contains(rename_from)
+                    });
+
+                    if allowed_pushdown_columns.is_empty() {
+                        return allowed_pushdown_columns;
+                    }
+                }
+
+                partition_by_names.clear();
+            }
+        }
+    }
+
+    allowed_pushdown_columns
 }
 
 /// Used in places that previously handled blocking exprs before refactoring.
