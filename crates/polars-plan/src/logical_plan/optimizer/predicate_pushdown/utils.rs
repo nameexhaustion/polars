@@ -328,35 +328,21 @@ where
     local_predicates
 }
 
-/// An expression blocks predicates from being pushed past it if its results for
-/// the subset where the predicate evaluates as true becomes different compared
-/// to if it was performed before the predicate was applied. This is in general
-/// any expression that produces outputs based on groups of values
-/// (i.e. groups-wise) rather than individual values (i.e. element-wise).
-///
-/// Examples of expressions whose results would change, and thus block push-down:
-/// - any aggregation - sum, mean, first, last, min, max etc.
-/// - sorting - as the sort keys would change between filters
-pub(super) fn aexpr_blocks_predicate_pushdown(node: Node, expr_arena: &Arena<AExpr>) -> bool {
-    let mut stack = Vec::<Node>::with_capacity(4);
-    stack.push(node);
-
-    // Cannot use `has_aexpr` because we need to ignore any literals in the RHS
-    // of an `is_in` operation.
-    while let Some(node) = stack.pop() {
-        let ae = expr_arena.get(node);
-
-        if match ae {
-            // These literals do not come from the RHS of an is_in, meaning that
-            // they are projected as either columns or predicates, both of which
-            // rely on the height of the dataframe at this level and thus need
-            // to block pushdown.
-            AExpr::Literal(value) => !value.projects_as_scalar(),
-            ae => ae.groups_sensitive(),
-        } {
-            return true;
-        }
-
+fn check_and_extend_predicate_pd_nodes(
+    stack: &mut Vec<Node>,
+    ae: &AExpr,
+    expr_arena: &Arena<AExpr>,
+) -> bool {
+    if match ae {
+        // These literals do not come from the RHS of an is_in, meaning that
+        // they are projected as either columns or predicates, both of which
+        // rely on the height of the dataframe at this level and thus need
+        // to block pushdown.
+        AExpr::Literal(value) => !value.projects_as_scalar(),
+        ae => ae.groups_sensitive(),
+    } {
+        false
+    } else {
         match ae {
             #[cfg(feature = "is_in")]
             AExpr::Function {
@@ -378,13 +364,38 @@ pub(super) fn aexpr_blocks_predicate_pushdown(node: Node, expr_arena: &Arena<AEx
                     }
                 };
                 if !transferred_local_nodes {
-                    ae.nodes(&mut stack);
+                    ae.nodes(stack);
                 }
             },
             ae => {
-                ae.nodes(&mut stack);
+                ae.nodes(stack);
             },
         };
+        true
+    }
+}
+
+/// An expression blocks predicates from being pushed past it if its results for
+/// the subset where the predicate evaluates as true becomes different compared
+/// to if it was performed before the predicate was applied. This is in general
+/// any expression that produces outputs based on groups of values
+/// (i.e. groups-wise) rather than individual values (i.e. element-wise).
+///
+/// Examples of expressions whose results would change, and thus block push-down:
+/// - any aggregation - sum, mean, first, last, min, max etc.
+/// - sorting - as the sort keys would change between filters
+pub(super) fn aexpr_blocks_predicate_pushdown(node: Node, expr_arena: &Arena<AExpr>) -> bool {
+    let mut stack = Vec::<Node>::with_capacity(4);
+    stack.push(node);
+
+    // Cannot use `has_aexpr` because we need to ignore any literals in the RHS
+    // of an `is_in` operation.
+    while let Some(node) = stack.pop() {
+        let ae = expr_arena.get(node);
+
+        if !check_and_extend_predicate_pd_nodes(&mut stack, ae, expr_arena) {
+            return true;
+        }
     }
 
     false
