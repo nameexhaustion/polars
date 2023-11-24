@@ -451,10 +451,12 @@ pub fn get_allowed_pushdown_names(
             get_maybe_aliased_projection_to_input_name_map(*projection_node, expr_arena)
         {
             // projection or projection->alias
+            debug_assert!(input_schema.contains(&*column_name));
             allowed_pushdown_names.insert(alias, column_name);
             continue;
         }
 
+        debug_assert!(ae_nodes_stack.is_empty());
         ae_nodes_stack.push(*projection_node);
 
         while !ae_nodes_stack.is_empty() {
@@ -492,11 +494,12 @@ pub fn get_allowed_pushdown_names(
                     common_window_inputs = Some(partition_by_names);
                 } else {
                     common_window_inputs
+                        .as_mut()
                         .unwrap()
                         .retain(|k| partition_by_names.contains(k));
                 }
 
-                if common_window_inputs.unwrap().is_empty() {
+                if common_window_inputs.as_ref().unwrap().is_empty() {
                     // Cannot push into disjoint windows:
                     // e.g.:
                     // * sum().over(A)
@@ -504,14 +507,18 @@ pub fn get_allowed_pushdown_names(
                     allowed_pushdown_names.clear();
                     return allowed_pushdown_names;
                 }
-            } else if !check_and_extend_predicate_pd_nodes(&mut stack, ae, expr_arena) {
+            } else if !check_and_extend_predicate_pd_nodes(&mut ae_nodes_stack, ae, expr_arena) {
                 allowed_pushdown_names.clear();
                 return allowed_pushdown_names;
             }
         }
     }
 
-    allowed_pushdown_columns
+    if let Some(common_window_inputs) = common_window_inputs {
+        allowed_pushdown_names.retain(|_, name| common_window_inputs.contains(name));
+    }
+
+    allowed_pushdown_names
 }
 
 /// Used in places that previously handled blocking exprs before refactoring.
