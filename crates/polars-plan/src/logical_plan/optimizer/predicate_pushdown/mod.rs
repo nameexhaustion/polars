@@ -87,43 +87,65 @@ impl<'a> PredicatePushDown<'a> {
                 assert!(matches!(lp, ALogicalPlan::ExtContext { .. }));
             }
 
-            let mut local_predicates = Vec::<Node>::new();
+            let mut remove_keys = Vec::<Arc<str>>::new();
 
-            let mut remove_keys = Vec::with_capacity(acc_predicates.len());
+            for (key, node) in acc_predicates.iter_mut() {
+                let column_nodes = aexpr_to_column_nodes(*node, &expr_arena);
+                let mut to_local = false;
+                let mut needs_rename = false;
 
-    for (key, predicate) in &*acc_predicates {
-        let root_names = aexpr_to_leaf_names(*predicate, expr_arena);
-        for name in root_names {
-            if condition(name) {
-                remove_keys.push(key.clone());
-                continue;
+                for node in column_nodes {
+                    let ae = expr_arena.get(node);
+
+                    if let AExpr::Column(name) = ae {
+                        to_local |= !pushdown_allowed_names.contains_key(name);
+
+                        if to_local {
+                            break;
+                        }
+
+                        needs_rename = name != pushdown_allowed_names.get(name).unwrap();
+                    } else {
+                        polars_bail!(ComputeError: "impl error: expected column");
+                    }
+                }
+
+                if to_local {
+                    remove_keys.push(key.clone());
+                    continue;
+                }
+
+                if needs_rename {
+                    let mut new_expr = node_to_expr(*node, &expr_arena);
+                    new_expr.mutate().apply(|e| {
+                        if let Expr::Column(name) = e {
+                            if let Some(rename_to) = pushdown_allowed_names.get(name) {
+                                if rename_to != name {
+                                    *name = rename_to.clone();
+                                };
+                            };
+                        };
+                        true
+                    });
+                    let predicate = to_aexpr(new_expr, expr_arena);
+
+                    *node = predicate;
+                }
             }
-        }
-    }
-    let mut local_predicates = Vec::with_capacity(remove_keys.len());
-    for key in remove_keys {
-        if let Some(pred) = acc_predicates.remove(&*key) {
-            local_predicates.push(pred)
-        }
-    }
-    local_predicates
 
-            acc_predicates.retain(|_, node| { 
-                let column_nodes = aexpr_to_column_nodes(root, arena);
+            let mut local_predicates = Vec::with_capacity(remove_keys.len());
+            for key in remove_keys {
+                if let Some(pred) = acc_predicates.remove(&*key) {
+                    local_predicates.push(pred)
+                }
+            }
 
-                column_nodes
-
-            });
-
-
-            let (local_predicates, projections) =
-                rewrite_projection_node(expr_arena, lp_arena, &mut acc_predicates, exprs, input);
-
+            let input = inputs[inputs.len() - 1];
             let alp = lp_arena.take(input);
             let alp = self.push_down(alp, acc_predicates, lp_arena, expr_arena)?;
             lp_arena.replace(input, alp);
 
-            let lp = lp.with_exprs_and_input(projections, inputs);
+            let lp = lp.with_exprs_and_input(exprs, inputs);
             Ok(self.optional_apply_predicate(lp, local_predicates, lp_arena, expr_arena))
         } else {
             let mut local_predicates = Vec::with_capacity(acc_predicates.len());
