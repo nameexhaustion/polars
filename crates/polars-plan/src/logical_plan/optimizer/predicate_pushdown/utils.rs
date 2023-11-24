@@ -400,102 +400,113 @@ pub(super) fn aexpr_blocks_predicate_pushdown(node: Node, expr_arena: &Arena<AEx
     false
 }
 
-fn try_unravel_alias(
-    stack: &mut Vec<Node>,
+/// * `col(A).alias(B).alias(C) : (C, A)`
+/// * `col(A)                   : (A, A)`
+/// * `col(A).sum().alias(B)    : None`
+fn get_maybe_aliased_projection_to_input_name_map(
+    node: Node,
     expr_arena: &Arena<AExpr>,
-) -> Option<(Arc<str>, Option<Arc<str>>)> {
-    let mut rename_from: Option<Arc<str>> = None;
-    let mut rename_to: Option<Arc<str>> = None;
+) -> Option<(Arc<str>, Arc<str>)> {
+    let mut curr_node = node;
+    let mut curr_alias: Option<Arc<str>> = None;
 
-    while !stack.is_empty() {
-        let projection_node = stack.pop().unwrap();
-        let projection_ae = expr_arena.get(projection_node);
+    loop {
+        let ae = expr_arena.get(node);
 
-        match projection_ae {
-            AExpr::Alias(node, name) => {
-                if rename_from.is_none() {
-                    rename_from = Some(name.clone());
+        match ae {
+            AExpr::Alias(node, alias) => {
+                if curr_alias.is_none() {
+                    curr_alias = Some(alias.clone());
                 }
-                stack.push(*node);
+
+                curr_node = *node;
             },
             AExpr::Column(name) => {
-                if rename_from.is_none() {
-                    rename_from = Some(name.clone());
+                return if let Some(alias) = curr_alias {
+                    Some((alias, name.clone()))
                 } else {
-                    rename_to = Some(name.clone());
+                    Some((name.clone(), name.clone()))
                 }
             },
-            _ => {
-                stack.push(projection_node);
-                return None;
-            },
+            _ => break,
         }
     }
 
-    Some((rename_from.unwrap(), rename_to))
+    None
 }
 
-pub fn get_allowed_pushdown_columns(
+pub fn get_allowed_pushdown_names(
     projection_nodes: &Vec<Node>,
     acc_predicates: &PlHashMap<Arc<str>, Node>,
+    input_schema: Arc<Schema>,
     expr_arena: &Arena<AExpr>,
-) -> PlHashMap<Arc<str>, Option<Arc<str>>> {
-    let mut stack = Vec::<Node>::with_capacity(4);
-    let mut has_window = false;
-    let mut allowed_pushdown_columns = optimizer::init_hashmap(Some(projection_nodes.len()));
-
-    let partition_by_names = &mut PlHashSet::<Arc<str>>::new();
+) -> PlHashMap<Arc<str>, Arc<str>> {
+    let mut ae_nodes_stack = Vec::<Node>::with_capacity(4);
+    let mut allowed_pushdown_names =
+        optimizer::init_hashmap::<Arc<str>, Arc<str>>(Some(projection_nodes.len()));
+    let mut common_window_inputs: Option<PlHashSet<Arc<str>>> = None;
 
     for projection_node in projection_nodes.iter() {
-        stack.push(*projection_node);
-
-        if let Some((rename_from, rename_to)) = try_unravel_alias(&mut stack, expr_arena) {
-            allowed_pushdown_columns.insert(rename_from, rename_to);
+        if let Some((alias, column_name)) =
+            get_maybe_aliased_projection_to_input_name_map(*projection_node, expr_arena)
+        {
+            // projection or projection->alias
+            allowed_pushdown_names.insert(alias, column_name);
             continue;
-        };
+        }
 
-        while !stack.is_empty() {
-            let projection_node = stack.pop().unwrap();
-            let projection_ae = expr_arena.get(projection_node);
+        ae_nodes_stack.push(*projection_node);
+
+        while !ae_nodes_stack.is_empty() {
+            let node = ae_nodes_stack.pop().unwrap();
+            let ae = expr_arena.get(node);
 
             if let AExpr::Window {
                 partition_by,
                 options,
                 ..
-            } = projection_ae
+            } = ae
             {
                 #[cfg(feature = "dynamic_group_by")]
                 if matches!(options, WindowType::Rolling(..)) {
-                    allowed_pushdown_columns.clear();
-                    return allowed_pushdown_columns;
+                    allowed_pushdown_names.clear();
+                    return allowed_pushdown_names;
                 }
+
+                let mut partition_by_names =
+                    PlHashSet::<Arc<str>>::with_capacity(partition_by.len());
 
                 for node in partition_by.iter() {
                     if let AExpr::Column(name) = expr_arena.get(*node) {
                         partition_by_names.insert(name.clone());
                     } else {
-                        allowed_pushdown_columns.clear();
-                        return allowed_pushdown_columns;
+                        // e.g.:
+                        // .over(col(A) + 1)
+                        // cannot pushdown in this case
+                        allowed_pushdown_names.clear();
+                        return allowed_pushdown_names;
                     }
                 }
 
-                if !has_window {
-                    allowed_pushdown_columns.clear();
-
-                    for name in partition_by_names.iter() {
-                        allowed_pushdown_columns.insert(name.clone(), None);
-                    }
+                if common_window_inputs.is_none() {
+                    common_window_inputs = Some(partition_by_names);
                 } else {
-                    allowed_pushdown_columns.retain(|rename_from, rename_to| {
-                        rename_to.is_none() && partition_by_names.contains(rename_from)
-                    });
-
-                    if allowed_pushdown_columns.is_empty() {
-                        return allowed_pushdown_columns;
-                    }
+                    common_window_inputs
+                        .unwrap()
+                        .retain(|k| partition_by_names.contains(k));
                 }
 
-                partition_by_names.clear();
+                if common_window_inputs.unwrap().is_empty() {
+                    // Cannot push into disjoint windows:
+                    // e.g.:
+                    // * sum().over(A)
+                    // * sum().over(B)
+                    allowed_pushdown_names.clear();
+                    return allowed_pushdown_names;
+                }
+            } else if !check_and_extend_predicate_pd_nodes(&mut stack, ae, expr_arena) {
+                allowed_pushdown_names.clear();
+                return allowed_pushdown_names;
             }
         }
     }
