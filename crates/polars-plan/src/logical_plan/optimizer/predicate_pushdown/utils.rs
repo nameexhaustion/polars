@@ -351,8 +351,7 @@ pub(super) fn aexpr_blocks_predicate_pushdown(node: Node, expr_arena: &Arena<AEx
             // they are projected as either columns or predicates, both of which
             // rely on the height of the dataframe at this level and thus need
             // to block pushdown.
-            AExpr::Literal(LiteralValue::Range { .. }) => true,
-            AExpr::Literal(LiteralValue::Series(s)) => s.len() > 1,
+            AExpr::Literal(value) => !value.projects_as_scalar(),
             ae => ae.groups_sensitive(),
         } {
             return true;
