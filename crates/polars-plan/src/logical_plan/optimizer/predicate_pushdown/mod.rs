@@ -75,11 +75,9 @@ impl<'a> PredicatePushDown<'a> {
         let exprs = lp.get_exprs();
 
         if has_projections {
-            // This checks the exprs in the projections at this level.
-            if exprs
-                .iter()
-                .any(|e_n| aexpr_blocks_predicate_pushdown(*e_n, expr_arena))
-            {
+            let pushdown_allowed_names = get_allowed_pushdown_names(&exprs, expr_arena);
+
+            if pushdown_allowed_names.is_empty() {
                 return self.no_pushdown_restart_opt(lp, acc_predicates, lp_arena, expr_arena);
             }
 
@@ -88,7 +86,36 @@ impl<'a> PredicatePushDown<'a> {
                 // except for ExtContext
                 assert!(matches!(lp, ALogicalPlan::ExtContext { .. }));
             }
-            let input = inputs[inputs.len() - 1];
+
+            let mut local_predicates = Vec::<Node>::new();
+
+            let mut remove_keys = Vec::with_capacity(acc_predicates.len());
+
+    for (key, predicate) in &*acc_predicates {
+        let root_names = aexpr_to_leaf_names(*predicate, expr_arena);
+        for name in root_names {
+            if condition(name) {
+                remove_keys.push(key.clone());
+                continue;
+            }
+        }
+    }
+    let mut local_predicates = Vec::with_capacity(remove_keys.len());
+    for key in remove_keys {
+        if let Some(pred) = acc_predicates.remove(&*key) {
+            local_predicates.push(pred)
+        }
+    }
+    local_predicates
+
+            acc_predicates.retain(|_, node| { 
+                let column_nodes = aexpr_to_column_nodes(root, arena);
+
+                column_nodes
+
+            });
+
+
             let (local_predicates, projections) =
                 rewrite_projection_node(expr_arena, lp_arena, &mut acc_predicates, exprs, input);
 

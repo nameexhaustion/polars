@@ -437,8 +437,6 @@ fn get_maybe_aliased_projection_to_input_name_map(
 
 pub fn get_allowed_pushdown_names(
     projection_nodes: &Vec<Node>,
-    acc_predicates: &PlHashMap<Arc<str>, Node>,
-    input_schema: Arc<Schema>,
     expr_arena: &Arena<AExpr>,
 ) -> PlHashMap<Arc<str>, Arc<str>> {
     let mut ae_nodes_stack = Vec::<Node>::with_capacity(4);
@@ -451,7 +449,6 @@ pub fn get_allowed_pushdown_names(
             get_maybe_aliased_projection_to_input_name_map(*projection_node, expr_arena)
         {
             // projection or projection->alias
-            debug_assert!(input_schema.contains(&*column_name));
             allowed_pushdown_names.insert(alias, column_name);
             continue;
         }
