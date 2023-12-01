@@ -78,7 +78,7 @@ pub trait StaticArray:
         v.into_iter().collect_arr_with_dtype(dtype)
     }
 
-    fn full_null(dtype: DataType, length: usize) -> Self {
+    fn full_null(length: usize, dtype: DataType) -> Self {
         unsafe {
             std::ptr::read(Box::into_raw(new_null_array(dtype.to_arrow(), length))
                 as *const dyn Array as *const Self)

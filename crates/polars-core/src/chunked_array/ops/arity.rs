@@ -592,7 +592,7 @@ where
             || (rhs.len() == 1 && rhs.downcast_get_unchecked(0).is_null_unchecked(0))
     } {
         let broadcast_to = lhs.len().max(rhs.len());
-        let arr = StaticArray::full_null(V::get_dtype(), broadcast_to);
+        let arr = StaticArray::full_null(broadcast_to, V::get_dtype());
         return ChunkedArray::with_chunk(lhs.name(), arr);
     }
 
@@ -626,7 +626,7 @@ where
             || (rhs.len() == 1 && rhs.downcast_get_unchecked(0).is_null_unchecked(0))
     } {
         let broadcast_to = lhs.len().max(rhs.len());
-        let arr = StaticArray::full_null(V::get_dtype(), broadcast_to);
+        let arr = StaticArray::full_null(broadcast_to, V::get_dtype());
         return Ok(ChunkedArray::with_chunk(lhs.name(), arr));
     }
 
