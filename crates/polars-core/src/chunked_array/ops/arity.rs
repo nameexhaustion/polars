@@ -539,7 +539,7 @@ where
 {
     match (lhs.len(), rhs.len()) {
         (1, _) => {
-            let a = unsafe { lhs.downcast_get_unchecked(0).get_unchecked(0).clone() };
+            let a = unsafe { lhs.downcast_get_unchecked(0).get_unchecked(0) };
             unary_elementwise(rhs, |b| op(a.clone(), b))
         },
         (_, 1) => {
