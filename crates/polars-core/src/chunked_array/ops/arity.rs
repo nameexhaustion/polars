@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use arrow::array::Array;
-use arrow::compute::utils::combine_validities_and;
+use arrow::array::{new_null_array, Array};
+use arrow::legacy::utils::combine_validities_and;
 
 use crate::datatypes::{ArrayCollectIterExt, ArrayFromIter, StaticArray};
 use crate::prelude::{ChunkedArray, PolarsDataType};
@@ -25,6 +25,18 @@ pub trait BinaryFnMut<A1, A2>: FnMut(A1, A2) -> Self::Ret {
 
 impl<A1, A2, R, T: FnMut(A1, A2) -> R> BinaryFnMut<A1, A2> for T {
     type Ret = R;
+}
+
+impl<T: PolarsDataType> ChunkedArray<T> {
+    /// Get an iterator over the values of all chunks.
+    fn downcast_iter_values(&self) -> impl Iterator<Item = Option<T::Physical<'_>>> {
+        self.downcast_iter().flat_map(|arr| arr.iter())
+    }
+
+    /// Get an iterator over the values of all chunks ignoring validity.
+    fn downcast_iter_values_unchecked(&self) -> impl Iterator<Item = T::Physical<'_>> {
+        self.downcast_iter().flat_map(|arr| arr.values_iter())
+    }
 }
 
 /// Applies a kernel that produces `Array` types.
@@ -445,4 +457,170 @@ where
             element_iter.collect_arr()
         });
     ChunkedArray::from_chunk_iter(ca1.name(), iter)
+}
+
+pub fn broadcast_binary_elementwise<T, U, V, F>(
+    lhs: &ChunkedArray<T>,
+    rhs: &ChunkedArray<U>,
+    mut op: F,
+) -> ChunkedArray<V>
+where
+    T: PolarsDataType,
+    U: PolarsDataType,
+    V: PolarsDataType,
+    F: for<'a> BinaryFnMut<Option<T::Physical<'a>>, Option<U::Physical<'a>>>,
+    V::Array: for<'a> ArrayFromIter<
+        <F as BinaryFnMut<Option<T::Physical<'a>>, Option<U::Physical<'a>>>>::Ret,
+    >,
+{
+    if lhs.len() == rhs.len() {
+        return binary_elementwise(lhs, rhs, op);
+    }
+
+    let mut lhs_iter = lhs.downcast_iter_values();
+    let mut rhs_iter = rhs.downcast_iter_values();
+
+    let chunk: V::Array = match (lhs.len(), rhs.len()) {
+        (1, _) => {
+            let a = lhs_iter.next().unwrap();
+            rhs_iter.map(|b| op(a.clone(), b)).collect_arr()
+        },
+        (_, 1) => {
+            let b = rhs_iter.next().unwrap();
+            lhs_iter.map(|a| op(a, b.clone())).collect_arr()
+        },
+        _ => lhs_iter.zip(rhs_iter).map(|(a, b)| op(a, b)).collect_arr(),
+    };
+
+    ChunkedArray::with_chunk(lhs.name(), chunk)
+}
+
+pub fn broadcast_try_binary_elementwise<T, U, V, F, K, E>(
+    lhs: &ChunkedArray<T>,
+    rhs: &ChunkedArray<U>,
+    mut op: F,
+) -> Result<ChunkedArray<V>, E>
+where
+    T: PolarsDataType,
+    U: PolarsDataType,
+    V: PolarsDataType,
+    F: for<'a> FnMut(Option<T::Physical<'a>>, Option<U::Physical<'a>>) -> Result<Option<K>, E>,
+    V::Array: ArrayFromIter<Option<K>>,
+{
+    if lhs.len() == rhs.len() {
+        return try_binary_elementwise(lhs, rhs, op);
+    }
+
+    let mut lhs_iter = lhs.downcast_iter_values();
+    let mut rhs_iter = rhs.downcast_iter_values();
+
+    let chunk: V::Array = match (lhs.len(), rhs.len()) {
+        (1, _) => {
+            let a = lhs_iter.next().unwrap();
+            rhs_iter.map(|b| op(a.clone(), b)).try_collect_arr()
+        },
+        (_, 1) => {
+            let b = rhs_iter.next().unwrap();
+            lhs_iter.map(|a| op(a, b.clone())).try_collect_arr()
+        },
+        _ => lhs_iter
+            .zip(rhs_iter)
+            .map(|(a, b)| op(a, b))
+            .try_collect_arr(),
+    }?;
+
+    Ok(ChunkedArray::with_chunk(lhs.name(), chunk))
+}
+
+pub fn broadcast_binary_elementwise_values<T, U, V, F, K>(
+    lhs: &ChunkedArray<T>,
+    rhs: &ChunkedArray<U>,
+    mut op: F,
+) -> ChunkedArray<V>
+where
+    T: PolarsDataType,
+    U: PolarsDataType,
+    V: PolarsDataType,
+    F: for<'a> FnMut(T::Physical<'a>, U::Physical<'a>) -> K,
+    V::Array: ArrayFromIter<K>,
+{
+    if lhs.len() == rhs.len() {
+        return binary_elementwise_values(lhs, rhs, op);
+    }
+
+    if unsafe {
+        (lhs.len() == 1 && lhs.downcast_get_unchecked(0).is_null_unchecked(0))
+            || (rhs.len() == 1 && rhs.downcast_get_unchecked(0).is_null_unchecked(0))
+    } {
+        let broadcast_to = lhs.len().max(rhs.len());
+        let arr = new_null_array(V::get_dtype().to_arrow(), broadcast_to);
+        let arr =
+            unsafe { std::ptr::read(Box::into_raw(arr) as *const dyn Array as *const V::Array) };
+        return ChunkedArray::with_chunk(lhs.name(), arr);
+    }
+
+    let mut lhs_iter = lhs.downcast_iter_values_unchecked();
+    let mut rhs_iter = rhs.downcast_iter_values_unchecked();
+
+    let chunk: V::Array = match (lhs.len(), rhs.len()) {
+        (1, _) => {
+            let a = lhs_iter.next().unwrap();
+            rhs_iter.map(|b| op(a.clone(), b)).collect_arr()
+        },
+        (_, 1) => {
+            let b = rhs_iter.next().unwrap();
+            lhs_iter.map(|a| op(a, b.clone())).collect_arr()
+        },
+        _ => lhs_iter.zip(rhs_iter).map(|(a, b)| op(a, b)).collect_arr(),
+    };
+
+    ChunkedArray::with_chunk(lhs.name(), chunk)
+}
+
+pub fn broadcast_try_binary_elementwise_values<T, U, V, F, K, E>(
+    lhs: &ChunkedArray<T>,
+    rhs: &ChunkedArray<U>,
+    mut op: F,
+) -> Result<ChunkedArray<V>, E>
+where
+    T: PolarsDataType,
+    U: PolarsDataType,
+    V: PolarsDataType,
+    F: for<'a> FnMut(T::Physical<'a>, U::Physical<'a>) -> Result<K, E>,
+    V::Array: ArrayFromIter<K>,
+{
+    if lhs.len() == rhs.len() {
+        return try_binary_elementwise_values(lhs, rhs, op);
+    }
+
+    if unsafe {
+        (lhs.len() == 1 && lhs.downcast_get_unchecked(0).is_null_unchecked(0))
+            || (rhs.len() == 1 && rhs.downcast_get_unchecked(0).is_null_unchecked(0))
+    } {
+        let broadcast_to = lhs.len().max(rhs.len());
+        let arr = new_null_array(V::get_dtype().to_arrow(), broadcast_to);
+        let arr =
+            unsafe { std::ptr::read(Box::into_raw(arr) as *const dyn Array as *const V::Array) };
+        return Ok(ChunkedArray::with_chunk(lhs.name(), arr));
+    }
+
+    let mut lhs_iter = lhs.downcast_iter_values_unchecked();
+    let mut rhs_iter = rhs.downcast_iter_values_unchecked();
+
+    let chunk: V::Array = match (lhs.len(), rhs.len()) {
+        (1, _) => {
+            let a = lhs_iter.next().unwrap();
+            rhs_iter.map(|b| op(a.clone(), b)).try_collect_arr()
+        },
+        (_, 1) => {
+            let b = rhs_iter.next().unwrap();
+            lhs_iter.map(|a| op(a, b.clone())).try_collect_arr()
+        },
+        _ => lhs_iter
+            .zip(rhs_iter)
+            .map(|(a, b)| op(a, b))
+            .try_collect_arr(),
+    }?;
+
+    Ok(ChunkedArray::with_chunk(lhs.name(), chunk))
 }

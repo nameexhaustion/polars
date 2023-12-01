@@ -399,7 +399,10 @@ where
     }
 }
 
-fn finish_validities(validities: Vec<(Option<Bitmap>, usize)>, capacity: usize) -> Option<Bitmap> {
+pub fn finish_validities(
+    validities: Vec<(Option<Bitmap>, usize)>,
+    capacity: usize,
+) -> Option<Bitmap> {
     if validities.iter().any(|(v, _)| v.is_some()) {
         let mut bitmap = MutableBitmap::with_capacity(capacity);
         for (valids, len) in validities {
