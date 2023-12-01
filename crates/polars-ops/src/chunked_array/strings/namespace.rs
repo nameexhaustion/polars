@@ -1,4 +1,4 @@
-use arrow::array::ValueSize;
+use arrow::array::{Array, ValueSize};
 use arrow::legacy::kernels::string::*;
 #[cfg(feature = "string_encoding")]
 use base64::engine::general_purpose;
@@ -102,8 +102,8 @@ pub trait Utf8NameSpaceImpl: AsUtf8 {
         strict: bool,
     ) -> PolarsResult<BooleanChunked> {
         let ca = self.as_utf8();
-        match pat.len() {
-            1 => match pat.get(0) {
+        match (ca.len(), pat.len()) {
+            (_, 1) => match pat.get(0) {
                 Some(pat) => {
                     if literal {
                         ca.contains_literal(pat)
@@ -112,6 +112,9 @@ pub trait Utf8NameSpaceImpl: AsUtf8 {
                     }
                 },
                 None => Ok(BooleanChunked::full_null(ca.name(), ca.len())),
+            },
+            (1, _) if unsafe { ca.get_unchecked(0) }.is_none() => {
+                BooleanChunked::full_null(ca.name(), ca.len())
             },
             _ => {
                 if literal {
