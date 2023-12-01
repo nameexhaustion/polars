@@ -47,7 +47,7 @@ where
 {
     let iter = ca
         .downcast_iter()
-        .map(|arr| arr.iter().map(|x| op(x)).collect_arr());
+        .map(|arr| arr.iter().map(&mut op).collect_arr());
     ChunkedArray::from_chunk_iter(ca.name(), iter)
 }
 
@@ -64,7 +64,7 @@ where
 {
     let iter = ca
         .downcast_iter()
-        .map(|arr| arr.iter().map(|x| op(x)).try_collect_arr());
+        .map(|arr| arr.iter().map(&mut op).try_collect_arr());
     ChunkedArray::try_from_chunk_iter(ca.name(), iter)
 }
 
@@ -77,8 +77,8 @@ where
     V::Array: ArrayFromIter<<F as UnaryFnMut<T::Physical<'a>>>::Ret>,
 {
     let iter = ca.downcast_iter().map(|arr| {
-        let validity = arr.validity().map(|x| x.clone());
-        let arr: V::Array = arr.values_iter().map(|x| op(x)).collect_arr();
+        let validity = arr.validity().cloned();
+        let arr: V::Array = arr.values_iter().map(&mut op).collect_arr();
         arr.with_validity_typed(validity)
     });
     ChunkedArray::from_chunk_iter(ca.name(), iter)
@@ -96,8 +96,8 @@ where
     V::Array: ArrayFromIter<K>,
 {
     let iter = ca.downcast_iter().map(|arr| {
-        let validity = arr.validity().map(|x| x.clone());
-        let arr: V::Array = arr.values_iter().map(|x| op(x)).try_collect_arr()?;
+        let validity = arr.validity().cloned();
+        let arr: V::Array = arr.values_iter().map(&mut op).try_collect_arr()?;
         Ok(arr.with_validity_typed(validity))
     });
     ChunkedArray::try_from_chunk_iter(ca.name(), iter)
