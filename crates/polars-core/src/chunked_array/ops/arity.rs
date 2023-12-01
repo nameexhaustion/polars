@@ -38,12 +38,12 @@ impl<A1, A2, R, T: FnMut(A1, A2) -> R> BinaryFnMut<A1, A2> for T {
 }
 
 #[inline]
-pub fn unary_elementwise<T, V, F>(ca: &ChunkedArray<T>, mut op: F) -> ChunkedArray<V>
+pub fn unary_elementwise<'a, T, V, F>(ca: &'a ChunkedArray<T>, mut op: F) -> ChunkedArray<V>
 where
     T: PolarsDataType,
     V: PolarsDataType,
-    F: for<'a> UnaryFnMut<Option<T::Physical<'a>>>,
-    V::Array: for<'a> ArrayFromIter<<F as UnaryFnMut<Option<T::Physical<'a>>>>::Ret>,
+    F: UnaryFnMut<Option<T::Physical<'a>>>,
+    V::Array: ArrayFromIter<<F as UnaryFnMut<Option<T::Physical<'a>>>>::Ret>,
 {
     let iter = ca
         .downcast_iter()
@@ -52,14 +52,14 @@ where
 }
 
 #[inline]
-pub fn try_unary_elementwise<T, V, F, K, E>(
-    ca: &ChunkedArray<T>,
+pub fn try_unary_elementwise<'a, T, V, F, K, E>(
+    ca: &'a ChunkedArray<T>,
     mut op: F,
 ) -> Result<ChunkedArray<V>, E>
 where
     T: PolarsDataType,
     V: PolarsDataType,
-    F: for<'a> FnMut(Option<T::Physical<'a>>) -> Result<Option<K>, E>,
+    F: FnMut(Option<T::Physical<'a>>) -> Result<Option<K>, E>,
     V::Array: ArrayFromIter<Option<K>>,
 {
     let iter = ca
@@ -69,12 +69,12 @@ where
 }
 
 #[inline]
-pub fn unary_elementwise_values<T, V, F>(ca: &ChunkedArray<T>, mut op: F) -> ChunkedArray<V>
+pub fn unary_elementwise_values<'a, T, V, F>(ca: &'a ChunkedArray<T>, mut op: F) -> ChunkedArray<V>
 where
     T: PolarsDataType,
     V: PolarsDataType,
-    F: for<'a> UnaryFnMut<T::Physical<'a>>,
-    V::Array: for<'a> ArrayFromIter<<F as UnaryFnMut<T::Physical<'a>>>::Ret>,
+    F: UnaryFnMut<T::Physical<'a>>,
+    V::Array: ArrayFromIter<<F as UnaryFnMut<T::Physical<'a>>>::Ret>,
 {
     let iter = ca.downcast_iter().map(|arr| {
         let validity = arr.validity().map(|x| x.clone());
@@ -85,14 +85,14 @@ where
 }
 
 #[inline]
-pub fn try_unary_elementwise_values<T, V, F, K, E>(
-    ca: &ChunkedArray<T>,
+pub fn try_unary_elementwise_values<'a, T, V, F, K, E>(
+    ca: &'a ChunkedArray<T>,
     mut op: F,
 ) -> Result<ChunkedArray<V>, E>
 where
     T: PolarsDataType,
     V: PolarsDataType,
-    F: for<'a> FnMut(T::Physical<'a>) -> Result<K, E>,
+    F: FnMut(T::Physical<'a>) -> Result<K, E>,
     V::Array: ArrayFromIter<K>,
 {
     let iter = ca.downcast_iter().map(|arr| {
