@@ -77,19 +77,17 @@ pub trait StaticArray:
     fn from_zeroable_vec(v: Vec<Self::ZeroableValueT<'_>>, dtype: DataType) -> Self {
         v.into_iter().collect_arr_with_dtype(dtype)
     }
+
+    fn full_null(dtype: DataType, length: usize) -> Self {
+        unsafe {
+            std::ptr::read(Box::into_raw(new_null_array(dtype.to_arrow(), length))
+                as *const dyn Array as *const Self)
+        }
+    }
 }
 
 pub trait ParameterFreeDtypeStaticArray: StaticArray {
     fn get_dtype() -> DataType;
-
-    fn full_null(length: usize) -> Self {
-        unsafe {
-            std::ptr::read(
-                Box::into_raw(new_null_array(Self::get_dtype().to_arrow(), length))
-                    as *const dyn Array as *const Self,
-            )
-        }
-    }
 }
 
 impl<T: NumericNative> StaticArray for PrimitiveArray<T> {

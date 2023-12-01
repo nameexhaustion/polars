@@ -3,9 +3,7 @@ use std::error::Error;
 use arrow::array::Array;
 use arrow::legacy::utils::combine_validities_and;
 
-use crate::datatypes::{
-    ArrayCollectIterExt, ArrayFromIter, ParameterFreeDtypeStaticArray, StaticArray,
-};
+use crate::datatypes::{ArrayCollectIterExt, ArrayFromIter, StaticArray};
 use crate::prelude::{ChunkedArray, PolarsDataType};
 use crate::utils::{align_chunks_binary, align_chunks_ternary};
 
@@ -587,14 +585,14 @@ where
     U: PolarsDataType,
     V: PolarsDataType,
     F: for<'a> FnMut(T::Physical<'a>, U::Physical<'a>) -> K,
-    V::Array: ArrayFromIter<K> + ParameterFreeDtypeStaticArray,
+    V::Array: ArrayFromIter<K>,
 {
     if unsafe {
         (lhs.len() == 1 && lhs.downcast_get_unchecked(0).is_null_unchecked(0))
             || (rhs.len() == 1 && rhs.downcast_get_unchecked(0).is_null_unchecked(0))
     } {
         let broadcast_to = lhs.len().max(rhs.len());
-        let arr = V::Array::full_null(broadcast_to);
+        let arr = StaticArray::full_null(V::get_dtype(), broadcast_to);
         return ChunkedArray::with_chunk(lhs.name(), arr);
     }
 
@@ -621,14 +619,14 @@ where
     U: PolarsDataType,
     V: PolarsDataType,
     F: for<'a> FnMut(T::Physical<'a>, U::Physical<'a>) -> Result<K, E>,
-    V::Array: ArrayFromIter<K> + ParameterFreeDtypeStaticArray,
+    V::Array: ArrayFromIter<K>,
 {
     if unsafe {
         (lhs.len() == 1 && lhs.downcast_get_unchecked(0).is_null_unchecked(0))
             || (rhs.len() == 1 && rhs.downcast_get_unchecked(0).is_null_unchecked(0))
     } {
         let broadcast_to = lhs.len().max(rhs.len());
-        let arr = V::Array::full_null(broadcast_to);
+        let arr = StaticArray::full_null(V::get_dtype(), broadcast_to);
         return Ok(ChunkedArray::with_chunk(lhs.name(), arr));
     }
 

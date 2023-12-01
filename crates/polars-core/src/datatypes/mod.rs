@@ -42,7 +42,7 @@ use serde::de::{EnumAccess, Error, Unexpected, VariantAccess, Visitor};
 use serde::{Deserialize, Serialize};
 #[cfg(any(feature = "serde", feature = "serde-lazy"))]
 use serde::{Deserializer, Serializer};
-pub use static_array::{ParameterFreeDtypeStaticArray, StaticArray};
+pub use static_array::StaticArray;
 pub use static_array_collect::{ArrayCollectIterExt, ArrayFromIter, ArrayFromIterDtype};
 pub use time_unit::*;
 
