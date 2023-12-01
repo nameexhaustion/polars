@@ -113,9 +113,10 @@ pub trait Utf8NameSpaceImpl: AsUtf8 {
                 },
                 None => Ok(BooleanChunked::full_null(ca.name(), ca.len())),
             },
-            (1, _) if unsafe { ca.get_unchecked(0) }.is_none() => {
-                Ok(BooleanChunked::full_null(ca.name(), ca.len()))
-            },
+            (1, _) if unsafe { ca.get_unchecked(0) }.is_none() => Ok(BooleanChunked::full_null(
+                ca.name(),
+                ca.len().max(pat.len()),
+            )),
             _ => {
                 if literal {
                     Ok(broadcast_binary_elementwise_values(ca, pat, |src, pat| {
