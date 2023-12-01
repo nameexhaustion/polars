@@ -539,11 +539,11 @@ where
 {
     match (lhs.len(), rhs.len()) {
         (1, _) => {
-            let a = unsafe { lhs.downcast_get_unchecked(0).get_unchecked(0) };
+            let a = unsafe { lhs.get_unchecked(0) };
             unary_elementwise(rhs, |b| op(a.clone(), b))
         },
         (_, 1) => {
-            let b = unsafe { rhs.downcast_get_unchecked(0).get_unchecked(0) };
+            let b = unsafe { rhs.get_unchecked(0) };
             unary_elementwise(lhs, |a| op(a, b.clone()))
         },
         _ => binary_elementwise(lhs, rhs, op),
@@ -564,11 +564,11 @@ where
 {
     match (lhs.len(), rhs.len()) {
         (1, _) => {
-            let a = unsafe { lhs.downcast_get_unchecked(0).get_unchecked(0) };
+            let a = unsafe { lhs.get_unchecked(0) };
             try_unary_elementwise(rhs, |b| op(a.clone(), b))
         },
         (_, 1) => {
-            let b = unsafe { rhs.downcast_get_unchecked(0).get_unchecked(0) };
+            let b = unsafe { rhs.get_unchecked(0) };
             try_unary_elementwise(lhs, |a| op(a, b.clone()))
         },
         _ => try_binary_elementwise(lhs, rhs, op),
