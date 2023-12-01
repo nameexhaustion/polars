@@ -1,3 +1,4 @@
+use arrow::array::{new_null_array, Array};
 use arrow::bitmap::utils::{BitmapIter, ZipValidity};
 use arrow::bitmap::Bitmap;
 use bytemuck::Zeroable;
@@ -80,6 +81,15 @@ pub trait StaticArray:
 
 pub trait ParameterFreeDtypeStaticArray: StaticArray {
     fn get_dtype() -> DataType;
+
+    fn full_null(length: usize) -> Self {
+        unsafe {
+            std::ptr::read(
+                Box::into_raw(new_null_array(Self::get_dtype().to_arrow(), length))
+                    as *const dyn Array as *const Self,
+            )
+        }
+    }
 }
 
 impl<T: NumericNative> StaticArray for PrimitiveArray<T> {
