@@ -51,7 +51,6 @@ use arrow::legacy::kernels::concatenate::concatenate_owned_unchecked;
 use arrow::legacy::prelude::*;
 use bitflags::bitflags;
 
-use self::upstream_traits::finish_validities;
 use crate::series::IsSorted;
 use crate::utils::{first_non_null, last_non_null, CustomIterTools};
 
@@ -234,22 +233,6 @@ impl<T: PolarsDataType> ChunkedArray<T> {
             arr.validity()
         }
         self.chunks.iter().map(to_validity)
-    }
-
-    /// Construct a Bitmap representing the validity of all chunks without
-    /// rechunking the values.
-    pub fn rechunked_validity(&self) -> Option<Bitmap> {
-        if self.has_validity() {
-            let validities = self
-                .iter_validities()
-                .map(|x| x.cloned())
-                .zip(self.chunk_id())
-                .collect::<Vec<(Option<Bitmap>, usize)>>();
-
-            finish_validities(validities, self.len())
-        } else {
-            None
-        }
     }
 
     #[inline]
