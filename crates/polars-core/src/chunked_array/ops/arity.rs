@@ -272,6 +272,13 @@ where
     F: for<'a> FnMut(T::Physical<'a>, U::Physical<'a>) -> K,
     V::Array: ArrayFromIter<K>,
 {
+    if lhs.null_count() == lhs.len() || rhs.null_count() == rhs.len() {
+        let len = lhs.len().min(rhs.len());
+        let arr = V::Array::full_null(len, V::get_dtype());
+
+        return ChunkedArray::with_chunk(lhs.name(), arr);
+    }
+
     let (lhs, rhs) = align_chunks_binary(lhs, rhs);
 
     let iter = lhs
@@ -304,6 +311,13 @@ where
     F: for<'a> FnMut(T::Physical<'a>, U::Physical<'a>) -> Result<K, E>,
     V::Array: ArrayFromIter<K>,
 {
+    if lhs.null_count() == lhs.len() || rhs.null_count() == rhs.len() {
+        let len = lhs.len().min(rhs.len());
+        let arr = V::Array::full_null(len, V::get_dtype());
+
+        return Ok(ChunkedArray::with_chunk(lhs.name(), arr));
+    }
+
     let (lhs, rhs) = align_chunks_binary(lhs, rhs);
     let iter = lhs
         .downcast_iter()
