@@ -113,7 +113,7 @@ pub trait Utf8NameSpaceImpl: AsUtf8 {
                 },
                 None => Ok(BooleanChunked::full_null(ca.name(), ca.len())),
             },
-            (1, _) if unsafe { ca.get_unchecked(0) }.is_none() => Ok(BooleanChunked::full_null(
+            (1, _) if ca.null_count() == 1 => Ok(BooleanChunked::full_null(
                 ca.name(),
                 ca.len().max(pat.len()),
             )),
