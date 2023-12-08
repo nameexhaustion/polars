@@ -45,11 +45,6 @@ where
     F: UnaryFnMut<Option<T::Physical<'a>>>,
     V::Array: ArrayFromIter<<F as UnaryFnMut<Option<T::Physical<'a>>>>::Ret>,
 {
-    if ca.null_count() == ca.len() {
-        let arr = V::Array::full_null(ca.len(), V::get_dtype());
-        return ChunkedArray::with_chunk(ca.name(), arr);
-    }
-
     let iter = ca
         .downcast_iter()
         .map(|arr| arr.iter().map(&mut op).collect_arr());
@@ -67,11 +62,6 @@ where
     F: FnMut(Option<T::Physical<'a>>) -> Result<Option<K>, E>,
     V::Array: ArrayFromIter<Option<K>>,
 {
-    if ca.null_count() == ca.len() {
-        let arr = V::Array::full_null(ca.len(), V::get_dtype());
-        return Ok(ChunkedArray::with_chunk(ca.name(), arr));
-    }
-
     let iter = ca
         .downcast_iter()
         .map(|arr| arr.iter().map(&mut op).try_collect_arr());
@@ -571,15 +561,6 @@ where
         <F as BinaryFnMut<Option<T::Physical<'a>>, Option<U::Physical<'a>>>>::Ret,
     >,
 {
-    if lhs.null_count() == lhs.len() && rhs.null_count() == rhs.len() {
-        let min = lhs.len().min(rhs.len());
-        let max = lhs.len().max(rhs.len());
-        let len = if min == 1 { max } else { min };
-        let arr = V::Array::full_null(len, V::get_dtype());
-
-        return ChunkedArray::with_chunk(lhs.name(), arr);
-    }
-
     match (lhs.len(), rhs.len()) {
         (1, _) => {
             let a = unsafe { lhs.get_unchecked(0) };
@@ -607,15 +588,6 @@ where
     F: for<'a> FnMut(Option<T::Physical<'a>>, Option<U::Physical<'a>>) -> Result<Option<K>, E>,
     V::Array: ArrayFromIter<Option<K>>,
 {
-    if lhs.null_count() == lhs.len() && rhs.null_count() == rhs.len() {
-        let min = lhs.len().min(rhs.len());
-        let max = lhs.len().max(rhs.len());
-        let len = if min == 1 { max } else { min };
-        let arr = V::Array::full_null(len, V::get_dtype());
-
-        return Ok(ChunkedArray::with_chunk(lhs.name(), arr));
-    }
-
     match (lhs.len(), rhs.len()) {
         (1, _) => {
             let a = unsafe { lhs.get_unchecked(0) };
