@@ -677,7 +677,9 @@ where
     match (lhs.len(), rhs.len()) {
         (1, _) => {
             let a = unsafe { lhs.value_unchecked(0) };
-            try_unary_elementwise_values(rhs, |b| op(a.clone(), b))
+            let mut out = try_unary_elementwise_values(rhs, |b| op(a.clone(), b))?;
+            out.rename(lhs.name());
+            Ok(out)
         },
         (_, 1) => {
             let b = unsafe { rhs.value_unchecked(0) };
