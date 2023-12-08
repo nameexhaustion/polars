@@ -46,7 +46,7 @@ where
     V::Array: ArrayFromIter<<F as UnaryFnMut<Option<T::Physical<'a>>>>::Ret>,
 {
     if ca.null_count() == ca.len() {
-        let arr = StaticArray::full_null(ca.len(), V::get_dtype());
+        let arr = V::Array::full_null(ca.len(), V::get_dtype());
         return ChunkedArray::with_chunk(ca.name(), arr);
     }
 
@@ -68,7 +68,7 @@ where
     V::Array: ArrayFromIter<Option<K>>,
 {
     if ca.null_count() == ca.len() {
-        let arr = StaticArray::full_null(ca.len(), V::get_dtype());
+        let arr = V::Array::full_null(ca.len(), V::get_dtype());
         return Ok(ChunkedArray::with_chunk(ca.name(), arr));
     }
 
@@ -87,7 +87,7 @@ where
     V::Array: ArrayFromIter<<F as UnaryFnMut<T::Physical<'a>>>::Ret>,
 {
     if ca.null_count() == ca.len() {
-        let arr = StaticArray::full_null(ca.len(), V::get_dtype());
+        let arr = V::Array::full_null(ca.len(), V::get_dtype());
         return ChunkedArray::with_chunk(ca.name(), arr);
     }
 
@@ -111,7 +111,7 @@ where
     V::Array: ArrayFromIter<K>,
 {
     if ca.null_count() == ca.len() {
-        let arr = StaticArray::full_null(ca.len(), V::get_dtype());
+        let arr = V::Array::full_null(ca.len(), V::get_dtype());
         return Ok(ChunkedArray::with_chunk(ca.name(), arr));
     }
 
@@ -561,7 +561,7 @@ where
         let min = lhs.len().min(rhs.len());
         let max = lhs.len().max(rhs.len());
         let len = if min == 1 { max } else { min };
-        let arr = StaticArray::full_null(len, V::get_dtype());
+        let arr = V::Array::full_null(len, V::get_dtype());
 
         return ChunkedArray::with_chunk(lhs.name(), arr);
     }
@@ -597,7 +597,7 @@ where
         let min = lhs.len().min(rhs.len());
         let max = lhs.len().max(rhs.len());
         let len = if min == 1 { max } else { min };
-        let arr = StaticArray::full_null(len, V::get_dtype());
+        let arr = V::Array::full_null(len, V::get_dtype());
 
         return Ok(ChunkedArray::with_chunk(lhs.name(), arr));
     }
@@ -633,7 +633,7 @@ where
         let min = lhs.len().min(rhs.len());
         let max = lhs.len().max(rhs.len());
         let len = if min == 1 { max } else { min };
-        let arr = StaticArray::full_null(len, V::get_dtype());
+        let arr = V::Array::full_null(len, V::get_dtype());
 
         return ChunkedArray::with_chunk(lhs.name(), arr);
     }
@@ -669,7 +669,7 @@ where
         let min = lhs.len().min(rhs.len());
         let max = lhs.len().max(rhs.len());
         let len = if min == 1 { max } else { min };
-        let arr = StaticArray::full_null(len, V::get_dtype());
+        let arr = V::Array::full_null(len, V::get_dtype());
 
         return Ok(ChunkedArray::with_chunk(lhs.name(), arr));
     }
