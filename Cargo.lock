@@ -3267,8 +3267,7 @@ checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 [[package]]
 name = "rayon"
 version = "1.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa7237101a77a10773db45d62004a272517633fbcc3df19d96455ede1122e051"
+source = "git+https://github.com/nameexhaustion/rayon.git?branch=v1.8.1-no-global#4f300ed37dab34ff7eeef7f1500f0626571b88e4"
 dependencies = [
  "either",
  "rayon-core",
@@ -3277,8 +3276,7 @@ dependencies = [
 [[package]]
 name = "rayon-core"
 version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
+source = "git+https://github.com/nameexhaustion/rayon.git?branch=v1.8.1-no-global#4f300ed37dab34ff7eeef7f1500f0626571b88e4"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
