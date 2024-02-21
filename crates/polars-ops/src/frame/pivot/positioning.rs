@@ -306,12 +306,14 @@ where
 
     let mut row_locations = Vec::with_capacity(index_agg_physical.len());
     for opt_v in index_agg_physical.iter() {
-        let opt_v = opt_v.to_total_ord();
-        let idx = *row_to_idx.entry(opt_v).or_insert_with(|| {
-            let old_idx = idx;
-            idx += 1;
-            old_idx
-        });
+        let idx = row_to_idx
+            .entry(opt_v.to_total_ord())
+            .or_insert_with(|| {
+                let old_idx = idx;
+                idx += 1;
+                (opt_v, old_idx)
+            })
+            .1;
 
         // SAFETY:
         // we pre-allocated
@@ -322,12 +324,8 @@ where
     let row_index = match count {
         0 => {
             let mut s = row_to_idx
-                .into_iter()
-                .map(|(k, _)| {
-                    let out = Option::<T::Physical<'a>>::peel_total_ord(k);
-                    let out: Option<T::Physical<'a>> = unsafe { std::mem::transmute_copy(&out) };
-                    out
-                })
+                .into_values()
+                .map(|(k, _)| k)
                 .collect::<ChunkedArray<T>>()
                 .into_series();
             s.rename(&index[0]);
