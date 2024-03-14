@@ -106,6 +106,5 @@ where
         size = right - left;
     }
 
-    debug_assert!(arr.len() == 0);
-    0 as IdxSize
+    left
 }

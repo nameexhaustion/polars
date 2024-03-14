@@ -13,6 +13,7 @@ use polars_utils::min_max::MinMax;
 pub use quantile::*;
 pub use var::*;
 
+use self::search_sorted::{binary_search_array, SearchSortedSide};
 use crate::chunked_array::ChunkedArray;
 use crate::datatypes::{BooleanChunked, PolarsNumericType};
 use crate::prelude::*;
@@ -99,17 +100,26 @@ where
         match self.is_sorted_flag() {
             IsSorted::Ascending => {
                 let idx = self.first_non_null().unwrap();
-
-                if T::get_dtype().is_float() {}
-
                 // SAFETY: first_non_null returns in bound index.
                 unsafe { self.get_unchecked(idx) }
             },
             IsSorted::Descending => {
-                self.last_non_null().and_then(|idx| {
-                    // SAFETY: last returns in bound index.
-                    unsafe { self.get_unchecked(idx) }
-                })
+                // if T::get_dtype().is_float() {
+                //     let offset = self.first_non_null().unwrap();
+                //     let length = self.last_non_null().unwrap() - offset;
+
+                //     let mut arr = unsafe { self.rechunk().downcast_get_unchecked(0) };
+                //     unsafe { arr.slice_unchecked(offset, length) };
+
+                //     let idx: u64 = with_match_physical_float_type!(T::get_dtype(), |$T| {
+                //         binary_search_array(SearchSortedSide::Left, arr, $T::NAN, false)
+                //     });
+
+                //     return None;
+                // }
+
+                let idx = self.last_non_null().unwrap();
+                unsafe { self.get_unchecked(idx) }
             },
             IsSorted::Not => self
                 .downcast_iter()
