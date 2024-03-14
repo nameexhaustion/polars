@@ -93,15 +93,17 @@ where
     }
 
     fn min(&self) -> Option<T::Native> {
-        if self.is_empty() {
+        if self.null_count() == self.len() {
             return None;
         }
         match self.is_sorted_flag() {
             IsSorted::Ascending => {
-                self.first_non_null().and_then(|idx| {
-                    // SAFETY: first_non_null returns in bound index.
-                    unsafe { self.get_unchecked(idx) }
-                })
+                let idx = self.first_non_null().unwrap();
+
+                if T::get_dtype().is_float() {}
+
+                // SAFETY: first_non_null returns in bound index.
+                unsafe { self.get_unchecked(idx) }
             },
             IsSorted::Descending => {
                 self.last_non_null().and_then(|idx| {
