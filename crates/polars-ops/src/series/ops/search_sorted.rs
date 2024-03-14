@@ -18,13 +18,8 @@ pub enum SearchSortedSide {
 }
 
 /// Search the left or right index that still fulfills the requirements.
-fn finish_side<'a, A>(
-    side: SearchSortedSide,
-    out: &mut Vec<IdxSize>,
-    mid: IdxSize,
-    arr: &'a A,
-    len: usize,
-) where
+fn get_side_idx<'a, A>(side: SearchSortedSide, mid: IdxSize, arr: &'a A, len: usize) -> IdxSize
+where
     A: StaticArray,
     A::ValueT<'a>: TotalOrd + Debug + Copy,
 {
@@ -33,9 +28,7 @@ fn finish_side<'a, A>(
     // approach the boundary from any side
     // this is O(n) we could make this binary search later
     match side {
-        SearchSortedSide::Any => {
-            out.push(mid);
-        },
+        SearchSortedSide::Any => mid,
         SearchSortedSide::Left => {
             if mid as usize == len {
                 mid -= 1;
@@ -44,53 +37,46 @@ fn finish_side<'a, A>(
             let current = unsafe { arr.get_unchecked(mid as usize) };
             loop {
                 if mid == 0 {
-                    out.push(mid);
-                    break;
+                    return mid;
                 }
                 mid -= 1;
                 if current.tot_ne(unsafe { &arr.get_unchecked(mid as usize) }) {
-                    out.push(mid + 1);
-                    break;
+                    return mid + 1;
                 }
             }
         },
         SearchSortedSide::Right => {
             if mid as usize == len {
-                out.push(mid);
-                return;
+                return mid;
             }
             let current = unsafe { arr.get_unchecked(mid as usize) };
             let bound = (len - 1) as IdxSize;
             loop {
                 if mid >= bound {
-                    out.push(mid + 1);
-                    break;
+                    return mid + 1;
                 }
                 mid += 1;
                 if current.tot_ne(unsafe { &arr.get_unchecked(mid as usize) }) {
-                    out.push(mid);
-                    break;
+                    return mid;
                 }
             }
         },
     }
 }
 
-fn binary_search_array<'a, A>(
+pub fn binary_search_array<'a, A>(
     side: SearchSortedSide,
-    out: &mut Vec<IdxSize>,
     arr: &'a A,
-    len: usize,
     search_value: A::ValueT<'a>,
     descending: bool,
-) where
+) -> IdxSize
+where
     A: StaticArray,
     A::ValueT<'a>: TotalOrd + Debug + Copy,
 {
-    let mut size = len as IdxSize;
+    let mut size = arr.len() as IdxSize;
     let mut left = 0 as IdxSize;
     let mut right = size;
-    let current_len = out.len();
     while left < right {
         let mid = left + size / 2;
 
@@ -116,15 +102,14 @@ fn binary_search_array<'a, A>(
         } else if cmp == Ordering::Greater {
             right = mid;
         } else {
-            finish_side(side, out, mid, arr, len);
-            break;
+            return get_side_idx(side, mid, arr, arr.len());
         }
 
         size = right - left;
     }
-    if out.len() == current_len {
-        out.push(left);
-    }
+
+    debug_assert!(arr.len() == 0);
+    0 as IdxSize
 }
 
 fn search_sorted_ca_array<T>(
@@ -144,20 +129,15 @@ where
     for search_arr in search_values.downcast_iter() {
         if search_arr.null_count() == 0 {
             for search_value in search_arr.values_iter() {
-                binary_search_array(side, &mut out, arr, ca.len(), *search_value, descending)
+                out.push(binary_search_array(side, arr, *search_value, descending))
             }
         } else {
             for opt_v in search_arr.into_iter() {
                 match opt_v {
                     None => out.push(0),
-                    Some(search_value) => binary_search_array(
-                        side,
-                        &mut out,
-                        arr,
-                        ca.len(),
-                        *search_value,
-                        descending,
-                    ),
+                    Some(search_value) => {
+                        out.push(binary_search_array(side, arr, *search_value, descending))
+                    },
                 }
             }
         }
@@ -179,14 +159,14 @@ fn search_sorted_bin_array_with_binary_offset(
     for search_arr in search_values.downcast_iter() {
         if search_arr.null_count() == 0 {
             for search_value in search_arr.values_iter() {
-                binary_search_array(side, &mut out, arr, ca.len(), search_value, descending)
+                out.push(binary_search_array(side, arr, search_value, descending))
             }
         } else {
             for opt_v in search_arr.into_iter() {
                 match opt_v {
                     None => out.push(0),
                     Some(search_value) => {
-                        binary_search_array(side, &mut out, arr, ca.len(), search_value, descending)
+                        out.push(binary_search_array(side, arr, search_value, descending))
                     },
                 }
             }
@@ -209,14 +189,14 @@ fn search_sorted_bin_array(
     for search_arr in search_values.downcast_iter() {
         if search_arr.null_count() == 0 {
             for search_value in search_arr.values_iter() {
-                binary_search_array(side, &mut out, arr, ca.len(), search_value, descending)
+                out.push(binary_search_array(side, arr, search_value, descending))
             }
         } else {
             for opt_v in search_arr.into_iter() {
                 match opt_v {
                     None => out.push(0),
                     Some(search_value) => {
-                        binary_search_array(side, &mut out, arr, ca.len(), search_value, descending)
+                        out.push(binary_search_array(side, arr, search_value, descending))
                     },
                 }
             }
