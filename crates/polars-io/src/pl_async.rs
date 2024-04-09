@@ -2,10 +2,13 @@ use std::error::Error;
 use std::future::Future;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::RwLock;
+use std::thread::ThreadId;
 
 use once_cell::sync::Lazy;
 use polars_core::config::verbose;
 use polars_core::POOL;
+use polars_utils::aliases::PlHashSet;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::Semaphore;
 
@@ -217,6 +220,7 @@ where
 
 pub struct RuntimeManager {
     rt: Runtime,
+    blocking_threads: RwLock<PlHashSet<ThreadId>>,
 }
 
 impl RuntimeManager {
@@ -228,22 +232,31 @@ impl RuntimeManager {
             .build()
             .unwrap();
 
-        Self { rt }
+        Self {
+            rt,
+            blocking_threads: Default::default(),
+        }
     }
 
     /// Keep track of rayon threads that drive the runtime. Every thread
     /// only allows a single runtime. If this thread calls block_on and this
     /// rayon thread is already driving an async execution we must start a new thread
     /// otherwise we panic. This can happen when we parallelize reads over 100s of files.
-    ///
-    /// # Safety
-    /// The tokio runtime flavor is multi-threaded.
     pub fn block_on_potential_spawn<F>(&'static self, future: F) -> F::Output
     where
         F: Future + Send,
         F::Output: Send,
     {
-        tokio::task::block_in_place(|| self.rt.block_on(future))
+        let thread_id = std::thread::current().id();
+
+        if self.blocking_threads.read().unwrap().contains(&thread_id) {
+            std::thread::scope(|s| s.spawn(|| self.rt.block_on(future)).join().unwrap())
+        } else {
+            self.blocking_threads.write().unwrap().insert(thread_id);
+            let out = self.rt.block_on(future);
+            self.blocking_threads.write().unwrap().remove(&thread_id);
+            out
+        }
     }
 
     pub fn block_on<F>(&self, future: F) -> F::Output
