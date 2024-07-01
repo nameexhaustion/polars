@@ -129,7 +129,7 @@ where
 }
 
 /// Creates an iterator of (hive partition path, DataFrame) pairs, e.g.:
-/// ("a=1/b=1", <DataFrame>)
+/// ("a=1/b=1", DataFrame)
 pub fn get_hive_partitions_iter<'a, S>(
     df: &'a DataFrame,
     partition_by: &'a [S],
