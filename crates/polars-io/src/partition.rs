@@ -127,3 +127,54 @@ where
     }
     path
 }
+
+/// Creates an iterator of (hive partition path, DataFrame) pairs, e.g.:
+/// ("a=1/b=1", <DataFrame>)
+pub fn get_hive_partitions_iter<'a, S>(
+    df: &'a DataFrame,
+    partition_by: &'a [S],
+) -> PolarsResult<Box<dyn Iterator<Item = (String, DataFrame)> + 'a>>
+where
+    S: AsRef<str>,
+{
+    let groups = df.group_by(partition_by)?;
+    let groups = groups.take_groups();
+
+    let get_path_part = |part_df: &DataFrame| {
+        partition_by
+            .iter()
+            .map(AsRef::as_ref)
+            .map(|x| {
+                format!(
+                    "{}={}",
+                    x,
+                    match part_df.column(x).unwrap().get(0).unwrap() {
+                        // Don't write quotes for string
+                        AnyValue::String(s) => s.to_string(),
+                        v => v.to_string(),
+                    }
+                )
+            })
+            .collect::<Box<[_]>>()
+            .join("/")
+    };
+
+    let out: Box<dyn Iterator<Item = (String, DataFrame)>> = match groups {
+        GroupsProxy::Idx(idx) => Box::new(idx.into_iter().map(move |(_, group)| {
+            let part_df =
+                unsafe { df._take_unchecked_slice_sorted(&group, false, IsSorted::Ascending) };
+            (get_path_part(&part_df), part_df)
+        })),
+        GroupsProxy::Slice { groups, .. } => {
+            Box::new(groups.into_iter().map(move |[offset, len]| {
+                let part_df = df.slice(
+                    i64::try_from(offset).unwrap(),
+                    usize::try_from(len).unwrap(),
+                );
+                (get_path_part(&part_df), part_df)
+            }))
+        },
+    };
+
+    Ok(out)
+}
