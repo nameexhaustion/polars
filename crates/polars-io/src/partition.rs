@@ -167,10 +167,7 @@ where
         })),
         GroupsProxy::Slice { groups, .. } => {
             Box::new(groups.into_iter().map(move |[offset, len]| {
-                let part_df = df.slice(
-                    i64::try_from(offset).unwrap(),
-                    usize::try_from(len).unwrap(),
-                );
+                let part_df = df.slice(offset as i64, len as usize);
                 (get_path_part(&part_df), part_df)
             }))
         },
