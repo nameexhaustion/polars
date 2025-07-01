@@ -38,7 +38,7 @@ io_types: list[IOType] = [
 
 
 @pytest.mark.parametrize("io_type", io_types)
-@pytest.mark.parametrize("length", [0, 1, 4, 5, 6, 7])
+@pytest.mark.parametrize("length", [0, 1, 4, 5, 6, 7, 11, 23])
 @pytest.mark.parametrize("max_size", [1, 2, 3])
 @pytest.mark.write_disk
 def test_max_size_partition(
@@ -61,9 +61,11 @@ def test_max_size_partition(
         sync_on_close="data",
     )
 
+    assert_frame_equal(io_type["scan"](tmp_path).collect(), lf.collect())
+
     i = 0
     while length > 0:
-        assert (io_type["scan"])(tmp_path / f"{i}.{io_type['ext']}").select(
+        assert (io_type["scan"])(tmp_path / f"{i:08x}.{io_type['ext']}").select(
             pl.len()
         ).collect()[0, 0] == min(max_size, length)
 
