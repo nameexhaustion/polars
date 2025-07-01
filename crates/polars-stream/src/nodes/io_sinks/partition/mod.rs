@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use futures::StreamExt;
 use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use polars_core::prelude::{Column, DataType, SortMultipleOptions};
 use polars_core::scalar::Scalar;
 use polars_core::schema::SchemaRef;
@@ -14,8 +14,8 @@ use polars_plan::dsl::{
 use polars_utils::format_pl_smallstr;
 use polars_utils::plpath::PlPathRef;
 
-use super::{DEFAULT_SINK_DISTRIBUTOR_BUFFER_SIZE, SinkInputPort, SinkNode};
-use crate::async_executor::{AbortOnDropHandle, spawn};
+use super::{SinkInputPort, SinkNode, DEFAULT_SINK_DISTRIBUTOR_BUFFER_SIZE};
+use crate::async_executor::{spawn, AbortOnDropHandle};
 use crate::async_primitives::wait_group::WaitGroup;
 use crate::async_primitives::{connector, distributor_channel};
 use crate::execute::StreamingExecutionState;
@@ -145,7 +145,7 @@ fn default_by_key_file_path_cb(
         write!(&mut file_path, "{name}={value}").unwrap();
         file_path.push(separator);
     }
-    write!(&mut file_path, "{in_part_idx}.{ext}").unwrap();
+    write!(&mut file_path, "{in_part_idx:08x}.{ext}").unwrap();
 
     Ok(file_path)
 }
