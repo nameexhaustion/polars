@@ -146,7 +146,7 @@ impl FunctionFlags {
     }
 
     pub fn is_length_preserving(self) -> bool {
-        self.contains(Self::LENGTH_PRESERVING)
+        self.contains(Self::LENGTH_PRESERVING) || self.is_elementwise()
     }
 
     pub fn observes_input_order(self) -> bool {
