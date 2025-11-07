@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch origin/main
+      - name: Fetch PR merge commit
         run: |
           git fetch origin refs/pull/${{ github.event.number }}/merge
 
