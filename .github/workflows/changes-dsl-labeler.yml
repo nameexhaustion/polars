@@ -13,8 +13,7 @@ jobs:
 
       - name: Fetch PR merge commit
         run: |
-          git fetch origin refs/pull/${{ github.event.number }}/merge pr-merge-commit
-
+          git fetch origin refs/pull/${{ github.event.number }}/merge:pr-merge-commit
       - name: Update label
         run: |
           if [ "$(git diff origin/main..pr-merge-commit crates/polars-plan/dsl-schema-hashes.json)" ]; then
