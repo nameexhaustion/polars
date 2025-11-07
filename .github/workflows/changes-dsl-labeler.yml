@@ -13,7 +13,7 @@ jobs:
 
       - name: Fetch PR merge commit
         run: |
-          git fetch origin refs/pull/${{ github.event.number }}/merge pr-merge-commit
+          git fetch origin refs/pull/${{ github.event.number }}/merge:pr-merge-commit
 
       - name: Update label
         run: |
