@@ -13,11 +13,11 @@ jobs:
 
       - name: Fetch PR merge commit
         run: |
-          git fetch origin refs/pull/${{ github.event.number }}/merge
+          git fetch origin refs/pull/${{ github.event.number }}/merge pr-merge-commit
 
       - name: Update label
         run: |
-          if [ "$(git diff origin/main..refs/pull/${{ github.event.number }}/merge crates/polars-plan/dsl-schema-hashes.json)" ]; then
+          if [ "$(git diff origin/main..pr-merge-commit crates/polars-plan/dsl-schema-hashes.json)" ]; then
             curl -s \
             -X POST \
             -H "Accept: application/vnd.github+json" \
