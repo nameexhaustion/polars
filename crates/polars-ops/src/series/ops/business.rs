@@ -212,6 +212,16 @@ pub fn add_business_days(
     let output_height = ternary_output_height!(start, n, holidays, op = "add_business_days")?;
     let output_name = start.name().clone();
 
+    let start_dates = start.date()?;
+    let n = match &n.dtype() {
+        DataType::Int64 | DataType::UInt64 | DataType::UInt32 => n.cast(&DataType::Int32)?,
+        DataType::Int32 => n.clone(),
+        _ => {
+            polars_bail!(InvalidOperation: "expected Int64, Int32, UInt64, or UInt32, got {}", n.dtype())
+        },
+    };
+    let n = n.i32()?;
+
     macro_rules! return_all_null {
         () => {
             return Ok(Int32Chunked::full_null(output_name, output_height).into_series())
@@ -222,16 +232,6 @@ pub fn add_business_days(
     if empty_or_all_null!(holidays) || empty_or_all_null!(start) || empty_or_all_null!(n) {
         return_all_null!()
     }
-
-    let start_dates = start.date()?;
-    let n = match &n.dtype() {
-        DataType::Int64 | DataType::UInt64 | DataType::UInt32 => n.cast(&DataType::Int32)?,
-        DataType::Int32 => n.clone(),
-        _ => {
-            polars_bail!(InvalidOperation: "expected Int64, Int32, UInt64, or UInt32, got {}", n.dtype())
-        },
-    };
-    let n = n.i32()?;
 
     let holidays = holidays.rechunk();
     let holidays_list: &LargeListArray = holidays.chunks()[0].as_any().downcast_ref().unwrap();
