@@ -224,7 +224,9 @@ pub fn add_business_days(
 
     macro_rules! return_all_null {
         () => {
-            return Ok(Int32Chunked::full_null(output_name, output_height).into_series())
+            return Ok(Int32Chunked::full_null(output_name, output_height)
+                .into_date()
+                .into_series())
         };
     }
 

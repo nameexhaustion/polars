@@ -189,7 +189,7 @@ def test_is_business_day_invalid() -> None:
             )
         )
     # List of holidays contains a null:
-    with pytest.raises(ComputeError, match="list of holidays contained a null"):
+    with pytest.raises(ComputeError, match="nulls found"):
         df.select(
             pl.col("date").dt.is_business_day(
                 holidays=pl.Series([[], [None], [date(2025, 1, 1)]]),
