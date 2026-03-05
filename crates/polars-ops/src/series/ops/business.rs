@@ -86,7 +86,7 @@ pub fn business_day_count(
             let start =
                 unsafe { start_dates.get_unchecked(if start_dates.len() == 1 { 0 } else { i }) }?;
             let end = unsafe { end_dates.get_unchecked(if end_dates.len() == 1 { 0 } else { i }) }?;
-            let holidays = holidays_getter.holiday_at_idx_broadcast(i)?;
+            let holidays = holidays_getter.holidays_at_idx_last_ret_on_oob(i)?;
 
             Some(business_day_count_impl(
                 start,
@@ -245,7 +245,7 @@ pub fn add_business_days(
     let n_business_days_in_week_mask = week_mask.iter().filter(|&x| *x).count() as i32;
 
     let out: Int32Chunked = if start.len() == 1 && holidays.len() == 1 {
-        let holidays_list = holidays_getter.holiday_at_idx_broadcast(0).unwrap();
+        let holidays_list = holidays_getter.holidays_at_idx_last_ret_on_oob(0).unwrap();
         let (start, day_of_week) =
             roll_start_date(start_dates.get(0).unwrap(), roll, &week_mask, holidays_list)?;
 
@@ -271,7 +271,7 @@ pub fn add_business_days(
                     start_dates.get_unchecked(if start_dates.len() == 1 { 0 } else { i })
                 }?;
                 let n = unsafe { n.get_unchecked(if n.len() == 1 { 0 } else { i }) }?;
-                let holidays_list = holidays_getter.holiday_at_idx_broadcast(i)?;
+                let holidays_list = holidays_getter.holidays_at_idx_last_ret_on_oob(i)?;
 
                 Some(roll_start_date(start, roll, &week_mask, holidays_list).map(
                     |(start, day_of_week)| {
@@ -408,7 +408,7 @@ pub fn is_business_day(
     let out: BooleanChunked = (0..output_height)
         .map(|i| {
             let date = unsafe { dates.get_unchecked(if dates.len() == 1 { 0 } else { i }) }?;
-            let holidays_list = holidays_getter.holiday_at_idx_broadcast(i)?;
+            let holidays_list = holidays_getter.holidays_at_idx_last_ret_on_oob(i)?;
 
             let day_of_week = get_day_of_week(date);
 
@@ -539,7 +539,9 @@ impl<'a> HolidayListsGetter<'a> {
     }
 
     /// If `idx` exceeds the length of holidays_list, the last returned row value is returned.
-    fn holiday_at_idx_broadcast(&mut self, idx: usize) -> Option<&[i32]> {
+    ///
+    /// Note, the `Option` of the return represents validity, not iterator exhaustion.
+    fn holidays_at_idx_last_ret_on_oob(&mut self, idx: usize) -> Option<&[i32]> {
         if idx >= self.holidays_list.len() {
             return Some(&self.current_row_values);
         }
