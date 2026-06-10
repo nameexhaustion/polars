@@ -23,6 +23,7 @@ from polars._utils.various import (
     qualified_type_name,
 )
 from polars._utils.wrap import wrap_df, wrap_ldf
+from polars._warnings import issue_warning
 from polars.datatypes import N_INFER_DEFAULT, String, parse_into_dtype
 from polars.io._utils import (
     is_glob_pattern,
@@ -491,10 +492,7 @@ def read_csv(
     schema_overrides_is_list = isinstance(schema_overrides, Sequence)
     encoding_supported_in_lazy = encoding in {"utf8", "utf8-lossy"}
 
-    streaming = (
-        os.getenv("POLARS_FORCE_STREAMING") == "1"
-        or os.getenv("POLARS_AUTO_STREAMING") == "1"
-    )
+    streaming = os.getenv("POLARS_FORCE_STREAMING") == "1"
 
     if streaming or (
         # Check that it is not a BytesIO object
@@ -1381,6 +1379,14 @@ def scan_csv(
     │ 4   ┆ read │
     └─────┴──────┘
     """
+    if rechunk:
+        issue_warning(
+            "rechunk=True no longer has effect on scan_csv(). "
+            "Consider first collecting the scan to a DataFrame, then calling "
+            "df.rechunk() on the result.",
+            category=UserWarning,
+        )
+
     if schema_overrides is not None and not isinstance(
         schema_overrides, (dict, Sequence)
     ):
